@@ -1,0 +1,26 @@
+# fly.toml app configuration file generated for telebot-ojjot-lively-wave-1135 on 2025-01-08T16:34:58+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'telebot-ojjot-lively-wave-1135'
+primary_region = 'cdg'
+
+[build]
+  builder = 'paketobuildpacks/builder:base'
+
+[env]
+  API_KEY = '9b440ee187msh29987a6568674e8p1ac199jsnf546c2c45e5a'
+  PORT = '8080'
+  TOKEN = '7577429699:AAFDna2WDWzLRhQehvVUyjVqIwyPd7-Ix7A'
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  size = 'shared-cpu-1x'
