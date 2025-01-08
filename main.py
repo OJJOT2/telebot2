@@ -6,6 +6,8 @@ from datetime import datetime
 from flask import Flask
 import threading
 import pytz
+import os
+import sys
 
 app = Flask('')
 
@@ -16,7 +18,18 @@ def home():
 def run():
     app.run(host='0.0.0.0', port=8080)
 
-threading.Thread(target=run, daemon=True).start()
+def start_thread(target):
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    return thread
+
+def restart_bot():
+    """Restarts the bot if an error is encountered (for instance, a duplicate instance error)."""
+    print("Bot instance error detected. Restarting...")
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
+
+start_thread(run)
 
 TOKEN = "7577429699:AAFDna2WDWzLRhQehvVUyjVqIwyPd7-Ix7A"
 bot = telebot.TeleBot(TOKEN)
@@ -28,6 +41,7 @@ headers = {
 autosend_time = ""
 
 user_reminders = {}
+
 def courses_list(courses_data):
     courses = []
     for course in courses_data.get("courses", []):
@@ -42,6 +56,7 @@ def courses_list(courses_data):
         courses.append(f"{title}\ncategory: {category}\ndescription: {description[:150]}...\nactual price: {price_b}$\nSale price: {price_a}$\n Sale end: {sale_end}\n[Link to course] ({url})\n------\n")
 
     return courses
+
 def calculate_remaining_time(sale_end: str):
     sale_end_format = "%Y-%m-%dT%H:%M:%S"
     sale_end_datetime = datetime.strptime(sale_end, sale_end_format)
@@ -69,16 +84,13 @@ def get_formatted_date():
     return current_time.strftime("%d/%m/%y (%I:%M %p)")
 
 def get_udemy_free_courses(query="python"):
-
-
-        conn.request("GET", f"/rapidapi/courses/search?page=1&page_size=10&query={query}", headers=headers)
-        res = conn.getresponse()
-        print(res)
-        data = res.read()
-        courses_data = json.loads(data.decode("utf-8"))
-        courses = []
-        courses_list(courses_data)
-        return courses_list(courses_data)
+    conn.request("GET", f"/rapidapi/courses/search?page=1&page_size=10&query={query}", headers=headers)
+    res = conn.getresponse()
+    print(res)
+    data = res.read()
+    courses_data = json.loads(data.decode("utf-8"))
+    courses = []
+    return courses_list(courses_data)
 
 # Function to read allowed chat IDs from the external file
 def load_allowed_chat_ids(filename="allowed_chat_ids.txt"):
@@ -149,13 +161,12 @@ def courses(message):
         courses = get_courses()
         bot.reply_to(message, f"Free Courses for Today {get_formatted_date()} !\n\n" + "\n\n".join(courses[:5]))
         bot.reply_to(message, f"Free Courses for Today {get_formatted_date()} !\n\n" + "\n\n".join(courses[5:]))
-    else:
-        bot.reply_to(message,f"Unautorized access?\nuser: {auth_user(message)[1]}")
 
 @bot.message_handler(commands=['search_courses'])
 def search_courses(message):
     if auth_user(message)[0]:
         query = message.text.replace("/search_courses", "").strip()
+        query = str(query).replace(" ", "%20")
         if query:
             courses = get_udemy_free_courses(query)
             if courses:
@@ -167,7 +178,6 @@ def search_courses(message):
             bot.reply_to(message, "Please provide a tag to search for, e.g., /search_courses python")
     else:
         bot.reply_to(message, f"unautorized access?\nuser: {auth_user(message)[1]}")
-
 
 def send_daily_courses():
     while True:
@@ -189,7 +199,7 @@ def send_daily_courses():
                 except Exception as e:
                     print(f"Error sending courses to user {user_id}: {e}")
         time.sleep(60)  # Check every minute
-
+   
 @bot.message_handler(commands=['set_course_reminder'])
 def set_course_reminder(message):
     try:
@@ -214,7 +224,6 @@ def cancel_course_reminder(message):
     else:
         bot.reply_to(message, "You don't have a reminder set.")
 
-
 @bot.message_handler(commands=['start', 'help'])
 def send_welcome(message):
     help_text = (
@@ -227,5 +236,13 @@ def send_welcome(message):
     )
     bot.reply_to(message, help_text)
 
-threading.Thread(target=send_daily_courses, daemon=True).start()
+# Thread to monitor and restart the bot if it gets duplicated
+def check_duplicate_instance():
+    try:
+        bot.polling(none_stop=True)
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        restart_bot()
+
+start_thread(check_duplicate_instance)
 bot.polling(none_stop=True)
