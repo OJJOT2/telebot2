@@ -80,12 +80,53 @@ def get_udemy_free_courses(query="python"):
         courses_list(courses_data)
         return courses_list(courses_data)
 
+# Function to read allowed chat IDs from the external file
+def load_allowed_chat_ids(filename="allowed_chat_ids.txt"):
+    try:
+        with open(filename, "r") as file:
+            # Read all lines, strip whitespace, and convert to a set of integers
+            return set(int(line.strip()) for line in file if line.strip().isdigit())
+    except FileNotFoundError:
+        print(f"Error: {filename} not found. No users are authorized.")
+        return set()  # Return an empty set if the file is missing
+    except Exception as e:
+        print(f"Error reading {filename}: {e}")
+        return set()
+
+# Function to check if a user is authorized
 def auth_user(message):
-    user_id = message.from_user['id'] if isinstance(message.from_user, dict) else message.from_user.id
-    if user_id == 5075265669:
-        return True
+    user_id = message.from_user.id
+    allowed_chat_ids = load_allowed_chat_ids()  # Load IDs from the file
+    return [user_id in allowed_chat_ids, user_id]
+
+# Telegram Command: /add_chat_id (for admin to add new IDs dynamically)
+@bot.message_handler(commands=['add_chat_id'])
+def add_chat_id(message):
+    try:
+        if auth_user(message)[0]:  # Only admins can add new IDs
+            new_chat_id = int(message.text.replace("/add_chat_id", "").strip())
+            with open("allowed_chat_ids.txt", "a") as file:
+                file.write(str(new_chat_id))
+                file.write("\n")
+            bot.reply_to(message, f"Chat ID {new_chat_id} has been added to the allowed list.")
+        else:
+            bot.reply_to(message, f"Unauthorized access.\nuser: {auth_user(message)[1]}")
+    except ValueError:
+        bot.reply_to(message, "Invalid chat ID. Please provide a valid integer.")
+    except Exception as e:
+        bot.reply_to(message, f"Error: {e}")
+
+# Telegram Command: /list_chat_ids (for admin to view allowed IDs)
+@bot.message_handler(commands=['list_chat_ids'])
+def list_chat_ids(message):
+    if auth_user(message)[0]:  # Only admins can view the list
+        allowed_chat_ids = load_allowed_chat_ids()
+        if allowed_chat_ids:
+            bot.reply_to(message, f"Allowed Chat IDs:\n{', '.join(map(str, allowed_chat_ids))}")
+        else:
+            bot.reply_to(message, "No chat IDs are currently allowed.")
     else:
-        return False
+        bot.reply_to(message, f"Unauthorized access.\nuser: {auth_user(message)[1]}")
 
 def get_courses():
     try:
@@ -104,16 +145,16 @@ def get_courses():
 
 @bot.message_handler(commands=['courses'])
 def courses(message):
-    if auth_user(message):
+    if auth_user(message)[0]:
         courses = get_courses()
         bot.reply_to(message, f"Free Courses for Today {get_formatted_date()} !\n\n" + "\n\n".join(courses[:5]))
         bot.reply_to(message, f"Free Courses for Today {get_formatted_date()} !\n\n" + "\n\n".join(courses[5:]))
     else:
-        bot.reply_to(message,"Unautorized access?")
+        bot.reply_to(message,f"Unautorized access?\nuser: {auth_user(message)[1]}")
 
 @bot.message_handler(commands=['search_courses'])
 def search_courses(message):
-    if auth_user(message):
+    if auth_user(message)[0]:
         query = message.text.replace("/search_courses", "").strip()
         if query:
             courses = get_udemy_free_courses(query)
@@ -125,7 +166,7 @@ def search_courses(message):
         else:
             bot.reply_to(message, "Please provide a tag to search for, e.g., /search_courses python")
     else:
-        bot.reply_to(message, "unautorized access?")
+        bot.reply_to(message, f"unautorized access?\nuser: {auth_user(message)[1]}")
 
 
 def send_daily_courses():
