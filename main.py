@@ -7,16 +7,6 @@ from flask import Flask
 import threading
 import pytz
 
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-threading.Thread(target=run, daemon=True).start()
 
 TOKEN = "7577429699:AAFDna2WDWzLRhQehvVUyjVqIwyPd7-Ix7A"
 bot = telebot.TeleBot(TOKEN)
